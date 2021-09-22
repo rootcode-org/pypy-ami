@@ -23,24 +23,24 @@ if "_configure" not in sys.argv:
         sys.exit("Requires Paramiko module; try 'pip install paramiko'")
 
 PURPOSE = """\
-pypy-ami.py list                                 List machine images in all regions
-pypy-ami.py build server|desktop <description>   Build machine images in all regions
-pypy-ami.py delete <identifiers...>              Delete specified machine image(s)
+pypy-ami.py list                                   List machine images in all regions
+pypy-ami.py build server|desktop [<description>]   Build machine images in all regions
+pypy-ami.py delete <identifiers...>                Delete specified machine image(s)
 
 where,
   server         Build a server image
   desktop        Build a desktop image (same as server but with addition of MATE desktop)
-  <description>  Description for generated image(s) 
+  <description>  Optional: Description for generated image(s) 
   <identifier>   Identifiers of images to delete
 """
 
 CONFIGURATION = {
     "pypy_version": "pypy3.7-v7.3.5",            # install this version of pypy to image
-    "pycharm_version": "2020.3.5",               # install this version of pycharm when creating desktop image
-    "max_files": 2000000,                        # set maximum open file limit to this
+    "pycharm_version": "2021.2.2",               # install this version of pycharm when creating desktop image
+    "max_open_files": 2000000,                   # specifies maximum open file limit
     "source_ami": {
-        "us-west-2": "ami-083ac7c7ecf9bb9b0",
-        "eu-west-2": "ami-0d26eb3972b7f8c96"
+        "us-west-2": "ami-0c2d06d50ce30b442",
+        "eu-west-2": "ami-0dbec48abfe298cab"
     }
 }
 
@@ -312,10 +312,10 @@ def configure_os():
         "vm.swappiness": 5,                     # Amazon Linux 2 default is 60
 
         # Maximum file handles the linux kernel can allocate
-        "fs.file-max": CONFIGURATION['max_files'],   # Amazon Linux 2 default is 399080
+        "fs.file-max": get_max_open_files(),   # Amazon Linux 2 default is 399080
 
         # Maximum file handles a process can allocate
-        "fs.nr_open": CONFIGURATION['max_files'],    # Amazon Linux 2 default is 1048576
+        "fs.nr_open": get_max_open_files(),    # Amazon Linux 2 default is 1048576
 
         # Maximum allowed connection backlog; set this high to allow connection surges
         "net.core.somaxconn": 131072,           # Amazon Linux 2 default is 128
@@ -359,11 +359,25 @@ def configure_os():
 def configure_pam():
     # Configure PAM limits to eliminate restriction on open files in a shell session
     # Do this configuration last as once executed the shell will become unuseable until reboot
-    max_files = CONFIGURATION['max_files']
+    max_open_files = get_max_open_files()
     pam_conf_file = "/etc/security/limits.d/99-server.conf"
     with open(pam_conf_file, "w") as f:
-        f.write("* hard nofile " + str(max_files) + "\n")
-        f.write("* soft nofile " + str(max_files) + "\n")
+        f.write("* hard nofile " + str(max_open_files) + "\n")
+        f.write("* soft nofile " + str(max_open_files) + "\n")
+
+
+# executes on builder instance
+#def get_system_memory_size_in_mb():
+#    with open("/proc/meminfo") as f:
+#        for line in f.read().splitlines():
+#            if line.find("MemTotal:") == 0:
+#                return int(line.split()[1]) // 1024     # extract memory size; value is always in KB
+#    raise("failed to query memory size")
+
+
+# executes on builder instance
+def get_max_open_files():
+    return CONFIGURATION["max_open_files"]
 
 
 if __name__ == '__main__':
