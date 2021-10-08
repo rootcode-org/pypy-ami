@@ -10,7 +10,7 @@ import datetime
 import subprocess
 from urllib.request import urlopen
 
-if "_configure" not in sys.argv:
+if "_remote" not in sys.argv:
     try:
         import boto3
         from botocore.config import Config
@@ -37,7 +37,7 @@ where,
 CONFIGURATION = {
     "pypy_version": "pypy3.7-v7.3.5",            # install this version of pypy to image
     "pycharm_version": "2021.2.2",               # install this version of pycharm when creating desktop image
-    "max_open_files": 2000000,                   # specifies maximum open file limit
+    "max_open_files": 2000000,                  # specifies maximum open file limit
     "source_ami": {
         "us-west-2": "ami-0c2d06d50ce30b442",
         "eu-west-2": "ami-0dbec48abfe298cab"
@@ -147,14 +147,16 @@ def build_image(region, build_type, description):
 
     # Upload this script
     print(' uploading configuration script...')
-    sftp.put(sys.argv[0], 'configure.py')
-    sftp.chmod('configure.py', 0o744)
+    local_script_path = sys.argv[0]
+    remote_script_name = os.path.basename(sys.argv[0])
+    sftp.put(local_script_path, remote_script_name)
+    sftp.chmod(remote_script_name, 0o744)
 
     # Execute script
     print(' executing configuration script...')
-    stdin, stdout, stderr = ssh.exec_command('sudo python3 configure.py _configure ' + build_type)
+    stdin, stdout, stderr = ssh.exec_command('sudo python3 ' + remote_script_name + ' _remote ' + build_type)
     exit_status = stdout.channel.recv_exit_status()
-    sftp.remove('configure.py')
+    sftp.remove(remote_script_name)
 
     # Remove temporary key from instance
     sftp.remove('.ssh/authorized_keys')
@@ -357,13 +359,12 @@ def configure_os():
 
 # executes on builder instance
 def configure_pam():
-    # Configure PAM limits to eliminate restriction on open files in a shell session
-    # Do this configuration last as once executed the shell will become unuseable until reboot
+    # Configure limits for users logged in via PAM
+    # Do this configuration last as once executed the shell will become inaccessible until reboot
     max_open_files = get_max_open_files()
-    pam_conf_file = "/etc/security/limits.d/99-server.conf"
-    with open(pam_conf_file, "w") as f:
-        f.write("* hard nofile " + str(max_open_files) + "\n")
-        f.write("* soft nofile " + str(max_open_files) + "\n")
+    with open("/etc/security/limits.conf", "a") as f:
+        f.write("\n* hard nofile " + str(max_open_files))
+        f.write("\n* soft nofile " + str(max_open_files))
 
 
 # executes on builder instance
@@ -416,7 +417,7 @@ if __name__ == '__main__':
                         delete_image(region, image)
                         break
 
-    elif command == "_configure":
+    elif command == "_remote":
         # executes on builder instance
         configuration_type = sys.argv[2]
         if configuration_type == "server":
