@@ -10,7 +10,7 @@ import datetime
 import subprocess
 from urllib.request import urlopen
 
-if "_remote" not in sys.argv:
+if "_install" not in sys.argv:
     try:
         import boto3
         from botocore.config import Config
@@ -35,12 +35,12 @@ where,
 """
 
 CONFIGURATION = {
-    "pypy_version": "pypy3.7-v7.3.5",            # install this version of pypy to image
+    "pypy_version": "pypy3.6-v7.3.3",            # install this version of pypy to image
     "pycharm_version": "2021.2.2",               # install this version of pycharm when creating desktop image
-    "max_open_files": 2000000,                  # specifies maximum open file limit
+    "max_open_files": 200000,                    # max open file limit
     "source_ami": {
-        "us-west-2": "ami-0c2d06d50ce30b442",
-        "eu-west-2": "ami-0dbec48abfe298cab"
+        "us-west-2": "ami-013a129d325529d4d",
+        "eu-west-2": "ami-02f5781cba46a5e8a"
     }
 }
 
@@ -154,7 +154,7 @@ def build_image(region, build_type, description):
 
     # Execute script
     print(' executing configuration script...')
-    stdin, stdout, stderr = ssh.exec_command('sudo python3 ' + remote_script_name + ' _remote ' + build_type)
+    stdin, stdout, stderr = ssh.exec_command('sudo python3 ' + remote_script_name + ' _install ' + build_type)
     exit_status = stdout.channel.recv_exit_status()
     sftp.remove(remote_script_name)
 
@@ -402,7 +402,7 @@ if __name__ == '__main__':
     elif command == "build":
         if len(sys.argv) < 3:
             sys.exit("missing parameter(s)")
-        build_type = sys.argv[2]
+        build_type = sys.argv[2].lower()
         if build_type not in ['server', 'desktop']:
             sys.exit('Unknown build type')
         description = " ".join(sys.argv[3:])
@@ -417,7 +417,7 @@ if __name__ == '__main__':
                         delete_image(region, image)
                         break
 
-    elif command == "_remote":
+    elif command == "_install":
         # executes on builder instance
         configuration_type = sys.argv[2]
         if configuration_type == "server":
