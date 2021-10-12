@@ -37,7 +37,6 @@ where,
 CONFIGURATION = {
     "pypy_version": "pypy3.6-v7.3.3",            # install this version of pypy to image
     "pycharm_version": "2021.2.2",               # install this version of pycharm when creating desktop image
-    "max_open_files": 200000,                    # max open file limit
     "source_ami": {
         "us-west-2": "ami-013a129d325529d4d",
         "eu-west-2": "ami-02f5781cba46a5e8a"
@@ -313,14 +312,8 @@ def configure_os():
         # Limit use of swap file until absolutely necessary
         "vm.swappiness": 5,                     # Amazon Linux 2 default is 60
 
-        # Maximum file handles the linux kernel can allocate
-        "fs.file-max": get_max_open_files(),   # Amazon Linux 2 default is 399080
-
-        # Maximum file handles a process can allocate
-        "fs.nr_open": get_max_open_files(),    # Amazon Linux 2 default is 1048576
-
-        # Maximum allowed connection backlog; set this high to allow connection surges
-        "net.core.somaxconn": 131072,           # Amazon Linux 2 default is 128
+        # Maximum allowed connection backlog; set this high to assist with re-connection surges
+        "net.core.somaxconn": 65536,           # Amazon Linux 2 default is 128
 
         # Allow all non-system ports to be used for outbound sockets
         "net.ipv4.ip_local_port_range": "1024 65535",        # Amazon Linux 2 default is 32768 60999
@@ -361,24 +354,9 @@ def configure_os():
 def configure_pam():
     # Configure limits for users logged in via PAM
     # Do this configuration last as once executed the shell will become inaccessible until reboot
-    max_open_files = get_max_open_files()
     with open("/etc/security/limits.conf", "a") as f:
-        f.write("\n* hard nofile " + str(max_open_files))
-        f.write("\n* soft nofile " + str(max_open_files))
-
-
-# executes on builder instance
-#def get_system_memory_size_in_mb():
-#    with open("/proc/meminfo") as f:
-#        for line in f.read().splitlines():
-#            if line.find("MemTotal:") == 0:
-#                return int(line.split()[1]) // 1024     # extract memory size; value is always in KB
-#    raise("failed to query memory size")
-
-
-# executes on builder instance
-def get_max_open_files():
-    return CONFIGURATION["max_open_files"]
+        f.write("\n* hard nofile 1048576")
+        f.write("\n* soft nofile 1048576")
 
 
 if __name__ == '__main__':
