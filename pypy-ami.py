@@ -35,11 +35,11 @@ where,
 """
 
 CONFIGURATION = {
-    "pypy_version": "pypy3.8-v7.3.6",            # install this version of pypy to image
-    "pycharm_version": "2021.2.2",               # install this version of pycharm when creating desktop image
+    "pypy_version": "pypy3.8-v7.3.7",            # install this version of pypy to image
+    "pycharm_version": "2021.2.3",               # install this version of pycharm when creating desktop image
     "source_ami": {
-        "us-west-2": "ami-013a129d325529d4d",
-        "eu-west-2": "ami-02f5781cba46a5e8a"
+        "us-west-2": "ami-0e5b6b6a9f3db6db8",
+        "eu-west-2": "ami-074771aa49ab046e7"
     }
 }
 
