@@ -9,6 +9,7 @@ import time
 import datetime
 import subprocess
 from urllib.request import urlopen
+import xml.etree.ElementTree as ET
 
 if "_install" not in sys.argv:
     try:
@@ -23,25 +24,16 @@ if "_install" not in sys.argv:
         sys.exit("Requires Paramiko module; try 'pip install paramiko'")
 
 PURPOSE = """\
-pypy-ami.py list                                   List machine images in all regions
-pypy-ami.py build server|desktop [<description>]   Build machine images in all regions
-pypy-ami.py delete <identifiers...>                Delete specified machine image(s)
+pypy-ami.py list                   List machine images
+pypy-ami.py build server|desktop   Build machine images
+pypy-ami.py delete <ami_id...>     Delete machine image(s)
 
 where,
-  server         Build a server image
-  desktop        Build a desktop image (same as server but with addition of MATE desktop)
-  <description>  Optional: Description for generated image(s) 
-  <identifier>   Identifiers of images to delete
+  server     Build a server image
+  desktop    Build a desktop image (same as server but with addition of MATE desktop)
+  config     Optional, path to configuration file; if not specified then config is loaded from current folder
+  <ami_id>   AMI identifier
 """
-
-CONFIGURATION = {
-    "pypy_version": "pypy3.8-v7.3.7",            # install this version of pypy to image
-    "pycharm_version": "2021.2.3",               # install this version of pycharm when creating desktop image
-    "source_ami": {
-        "us-west-2": "ami-0e5b6b6a9f3db6db8",
-        "eu-west-2": "ami-074771aa49ab046e7"
-    }
-}
 
 
 def list_images(regions):
@@ -55,8 +47,7 @@ def list_images(regions):
     return all_images
 
 
-def build_image(region, build_type, description):
-
+def build_image(region, build_type, source_ami, pypy_version, pycharm_version, description):
     print('Creating ' + build_type + ' AMI in ' + region)
     client = boto3.client('ec2', config=Config(region_name=region))
 
@@ -101,7 +92,6 @@ def build_image(region, build_type, description):
 
     # Launch instance
     print(' launching builder instance...')
-    source_ami = CONFIGURATION["source_ami"][region]
     response = client.run_instances(
         ImageId=source_ami,
         InstanceType='c5.xlarge',
@@ -153,7 +143,7 @@ def build_image(region, build_type, description):
 
     # Execute script
     print(' executing configuration script...')
-    stdin, stdout, stderr = ssh.exec_command('sudo python3 ' + remote_script_name + ' _install ' + build_type)
+    stdin, stdout, stderr = ssh.exec_command('sudo python3 {0} _install {1} {2} {3}'.format(remote_script_name, build_type, pypy_version, pycharm_version))
     exit_status = stdout.channel.recv_exit_status()
     sftp.remove(remote_script_name)
 
@@ -176,7 +166,7 @@ def build_image(region, build_type, description):
     # Generate AMI from instance
     print(' generating AMI...')
     now = datetime.datetime.utcnow()
-    ami_name = 'amzn2-' + build_type + '-{0}{1:>02}{2:>02}-{3:>02}{4:>02}{5:>02}'.format(str(now.year)[-2:], now.month, now.day, now.hour, now.minute, now.second)
+    ami_name = "{0}-{1}{2:>02}{3:>02}-{4:>02}{5:>02}{6:>02}".format(build_type, str(now.year)[-2:], now.month, now.day, now.hour, now.minute, now.second)
     response = client.create_image(
         Description=description,
         InstanceId=instance_id,
@@ -223,7 +213,6 @@ def build_image(region, build_type, description):
 
 def delete_image(region, image):
     client = boto3.client('ec2', config=Config(region_name=region))
-    # Delete image
     identifier = image["ImageId"]
     client.deregister_image(ImageId=identifier)
     print("deleted {0} from {1}".format(identifier, region))
@@ -237,8 +226,8 @@ def delete_image(region, image):
 
 
 # executes on builder instance
-def install_pypy():
-    pypy_distribution = CONFIGURATION['pypy_version'] + "-linux64"
+def install_pypy(pypy_version):
+    pypy_distribution = pypy_version + "-linux64"
     pypy_file = pypy_distribution + ".tar.bz2"
     pypy_uri = "https://downloads.python.org/pypy/" + pypy_file
     fp = urlopen(pypy_uri)
@@ -252,9 +241,7 @@ def install_pypy():
 
 
 # executes on builder instance
-def install_desktop():
-    pypy_version=CONFIGURATION['pypy_version']
-    pycharm_version=CONFIGURATION['pycharm_version']
+def install_desktop(pypy_version, pycharm_version):
 
     # Install and configure desktop
     # see https://aws.amazon.com/premiumsupport/knowledge-center/ec2-linux-2-install-gui/
@@ -367,46 +354,50 @@ if __name__ == '__main__':
         sys.exit(PURPOSE)
 
     command = sys.argv[1]
-    regions = CONFIGURATION["source_ami"].keys()
-
-    if command == "list":
-        for region, images in list_images(regions).items():
-            for image in images:
-                identifier = image["ImageId"]
-                name = image["Name"]
-                description = image["Description"] if "Description" in image else ""
-                print("{0}  {1:28} {2}    {3}".format(region, name, identifier, description))
-
-    elif command == "build":
-        if len(sys.argv) < 3:
-            sys.exit("missing parameter(s)")
-        build_type = sys.argv[2].lower()
-        if build_type not in ['server', 'desktop']:
-            sys.exit('Unknown build type')
-        description = " ".join(sys.argv[3:])
-        for region in regions:
-            build_image(region, build_type, description)
-
-    elif command == "delete":
-        for region, images in list_images(regions).items():
-            for image in images:
-                for identifier in sys.argv[2:]:
-                    if identifier == image["ImageId"]:
-                        delete_image(region, image)
-                        break
-
-    elif command == "_install":
+    if command == "_install":
         # executes on builder instance
-        configuration_type = sys.argv[2]
-        if configuration_type == "server":
-            install_pypy()
+        build_type = sys.argv[2]
+        pypy_version = sys.argv[3]
+        pycharm_version = sys.argv[4]
+        if build_type == "server":
+            install_pypy(pypy_version)
             configure_os()
             configure_pam()
-        elif configuration_type == "desktop":
-            install_pypy()
-            install_desktop()
+        elif build_type == "desktop":
+            install_pypy(pypy_version)
+            install_desktop(pypy_version, pycharm_version)
             configure_os()
             configure_pam()
-
     else:
-        sys.exit("Unknown command")
+
+        # Load and parse configuration
+        root = ET.parse("configuration.xml").getroot()
+        pypy_version = root.find("pypy_ami").find("pypy_version").text
+        pycharm_version = root.find("pypy_ami").find("pycharm_version").text
+        source_amis = root.find("pypy_ami").find("source_ami")
+        regions = [x.tag for x in source_amis]
+
+        if command == "list":
+            for region, images in list_images(regions).items():
+                for image in images:
+                    description = image["Description"] if "Description" in image else ""
+                    print("{0}  {1:28} {2}    {3}".format(region, image["Name"], image["ImageId"], description))
+
+        elif command == "build":
+            if len(sys.argv) < 3:
+                sys.exit("missing parameter(s)")
+            build_type = sys.argv[2].lower()
+            if build_type not in ['server', 'desktop']:
+                sys.exit('Unknown build type')
+            description = pypy_version
+            for region in regions:
+                source_ami = source_amis.find(region).text
+                build_image(region, build_type, source_ami, pypy_version, pycharm_version, description)
+
+        elif command == "delete":
+            for region, images in list_images(regions).items():
+                for image in images:
+                    for identifier in sys.argv[2:]:
+                        if identifier == image["ImageId"]:
+                            delete_image(region, image)
+                            break
