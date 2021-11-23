@@ -31,7 +31,6 @@ pypy-ami.py delete <ami_id...>     Delete machine image(s)
 where,
   server     Build a server image
   desktop    Build a desktop image (same as server but with addition of MATE desktop)
-  config     Optional, path to configuration file; if not specified then config is loaded from current folder
   <ami_id>   AMI identifier
 """
 
@@ -350,10 +349,8 @@ if __name__ == '__main__':
 
     if sys.version_info < (3, 7):
         sys.exit("Python version must be 3.7 or later")
-    if len(sys.argv) < 2:
-        sys.exit(PURPOSE)
 
-    command = sys.argv[1]
+    command = sys.argv[1] if len(sys.argv) > 1 else None
     if command == "_install":
         # executes on builder instance
         build_type = sys.argv[2]
@@ -403,3 +400,5 @@ if __name__ == '__main__':
                         if identifier == image["ImageId"]:
                             delete_image(region, image)
                             break
+        else:
+            print(PURPOSE)
