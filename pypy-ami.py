@@ -11,19 +11,19 @@ import subprocess
 from urllib.request import urlopen
 import xml.etree.ElementTree as ET
 
-if "_install" not in sys.argv:
+if '_install' not in sys.argv:
     try:
         import boto3
         from botocore.config import Config
     except ImportError:
-        sys.exit("Requires Boto3 module; try 'pip install boto3'")
+        sys.exit('Requires Boto3 module; try "pip install boto3"')
 
     try:
         import paramiko
     except ImportError:
-        sys.exit("Requires Paramiko module; try 'pip install paramiko'")
+        sys.exit('Requires Paramiko module; try "pip install paramiko"')
 
-PURPOSE = """\
+PURPOSE = '''\
 pypy-ami.py list                   List machine images
 pypy-ami.py build server|desktop   Build machine images
 pypy-ami.py delete <ami_id...>     Delete machine image(s)
@@ -32,7 +32,7 @@ where,
   server     Build a server image
   desktop    Build a desktop image (same as server but with addition of MATE desktop)
   <ami_id>   AMI identifier
-"""
+'''
 
 
 def list_images(regions):
@@ -66,10 +66,10 @@ def build_image(region, build_type, source_ami, name_prefix, pypy_version, pycha
     print(' creating temporary keypair...')
     temporary_name = '_pypy-ami_' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
     response = client.create_key_pair(KeyName=temporary_name)
-    keypair_material = response["KeyMaterial"]
-    keypair_id = response["KeyPairId"]
+    keypair_material = response['KeyMaterial']
+    keypair_id = response['KeyPairId']
     keypair_file_path = os.path.join(tempfile.gettempdir(), ''.join(random.choices(string.ascii_uppercase + string.digits, k=20)))
-    with open(keypair_file_path, "w") as f:
+    with open(keypair_file_path, 'w') as f:
         f.write(keypair_material)
 
     # Create a temporary security group that allows SSH access from this WAN IP only
@@ -165,7 +165,7 @@ def build_image(region, build_type, source_ami, name_prefix, pypy_version, pycha
     # Generate AMI from instance
     print(' generating AMI...')
     now = datetime.datetime.utcnow()
-    image_name = "{0}-{1}-{2}{3:>02}{4:>02}-{5:>02}{6:>02}{7:>02}".format(name_prefix, build_type, str(now.year)[-2:], now.month, now.day, now.hour, now.minute, now.second)
+    image_name = '{0}-{1}-{2}{3:>02}{4:>02}-{5:>02}{6:>02}{7:>02}'.format(name_prefix, build_type, str(now.year)[-2:], now.month, now.day, now.hour, now.minute, now.second)
     response = client.create_image(
         Description=description,
         InstanceId=instance_id,
@@ -212,30 +212,30 @@ def build_image(region, build_type, source_ami, name_prefix, pypy_version, pycha
 
 def delete_image(region, image):
     client = boto3.client('ec2', config=Config(region_name=region))
-    identifier = image["ImageId"]
+    identifier = image['ImageId']
     client.deregister_image(ImageId=identifier)
-    print("deleted {0} from {1}".format(identifier, region))
+    print('deleted {0} from {1}'.format(identifier, region))
     # Delete associated snapshot
-    device_mappings = image["BlockDeviceMappings"]
+    device_mappings = image['BlockDeviceMappings']
     for mapping in device_mappings:
-        if "Ebs" in mapping:
-            snapshot_id = mapping["Ebs"]["SnapshotId"]
+        if 'Ebs' in mapping:
+            snapshot_id = mapping['Ebs']['SnapshotId']
             client.delete_snapshot(SnapshotId=snapshot_id)
-            print("deleted {0} from {1}".format(snapshot_id, region))
+            print('deleted {0} from {1}'.format(snapshot_id, region))
 
 
 # executes on builder instance
 def install_pypy(pypy_version):
-    pypy_distribution = pypy_version + "-linux64"
-    pypy_file = pypy_distribution + ".tar.bz2"
-    pypy_uri = "https://downloads.python.org/pypy/" + pypy_file
+    pypy_distribution = pypy_version + '-linux64'
+    pypy_file = pypy_distribution + '.tar.bz2'
+    pypy_uri = 'https://downloads.python.org/pypy/' + pypy_file
     fp = urlopen(pypy_uri)
-    with open(pypy_file, "wb") as f:
+    with open(pypy_file, 'wb') as f:
         f.write(fp.read())
-    p = subprocess.Popen(["tar", "xjf", pypy_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen(['tar', 'xjf', pypy_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     out, err = p.communicate()
-    pypy_binary = "/home/ec2-user/" + pypy_distribution + "/bin/pypy3"
-    subprocess.call(["ln", "-sf", pypy_binary, "/usr/bin/pypy"])
+    pypy_binary = '/home/ec2-user/' + pypy_distribution + '/bin/pypy3'
+    subprocess.call(['ln', '-sf', pypy_binary, '/usr/bin/pypy'])
     os.remove(pypy_file)
 
 
@@ -244,123 +244,123 @@ def install_desktop(pypy_version, pycharm_version):
 
     # Install and configure desktop
     # see https://aws.amazon.com/premiumsupport/knowledge-center/ec2-linux-2-install-gui/
-    subprocess.call(["yum", "-y", "-q", "update"])
-    subprocess.call(["amazon-linux-extras", "enable", "mate-desktop1.x"])
-    subprocess.call(["yum", "clean", "metadata"])
-    subprocess.call(["yum", "-y", "-q", "install", "mesa-dri-drivers", "dejavu-sans-fonts", "dejavu-sans-mono-fonts", "dejavu-serif-fonts", "mate-session-manager", "mate-panel", "marco", "caja", "mate-terminal"])
+    subprocess.call(['yum', '-y', '-q', 'update'])
+    subprocess.call(['amazon-linux-extras', 'enable', 'mate-desktop1.x'])
+    subprocess.call(['yum', 'clean', 'metadata'])
+    subprocess.call(['yum', '-y', '-q', 'install', 'mesa-dri-drivers', 'dejavu-sans-fonts', 'dejavu-sans-mono-fonts', 'dejavu-serif-fonts', 'mate-session-manager', 'mate-panel', 'marco', 'caja', 'mate-terminal'])
 
     # Set the preferred desktop as MATE
-    with open(".Xclients", "w") as f:
-        f.write("/usr/bin/mate-session")
-    os.chmod(".Xclients", 0o775)
+    with open('.Xclients', 'w') as f:
+        f.write('/usr/bin/mate-session')
+    os.chmod('.Xclients', 0o775)
 
     # Install PyCharm IDE
-    subprocess.call(["wget", "-q", "https://download.jetbrains.com/python/pycharm-community-" + pycharm_version + ".tar.gz"])
-    subprocess.call(["tar", "xzf", "pycharm-community-" + pycharm_version + ".tar.gz"])
-    os.remove("pycharm-community-" + pycharm_version + ".tar.gz")
+    subprocess.call(['wget', '-q', 'https://download.jetbrains.com/python/pycharm-community-' + pycharm_version + '.tar.gz'])
+    subprocess.call(['tar', 'xzf', 'pycharm-community-' + pycharm_version + '.tar.gz'])
+    os.remove('pycharm-community-' + pycharm_version + '.tar.gz')
 
     # Enable ec2-user to bind sockets to ports less than 1024 and to set process priority
-    subprocess.call(["setcap cap_net_bind_service,cap_sys_nice=+ep /usr/bin/python2.7"], shell=True)
-    subprocess.call(["setcap cap_net_bind_service,cap_sys_nice=+ep /usr/bin/python3.7"], shell=True)
-    pypy_path = "/home/ec2-user/" + pypy_version + "-linux64/bin/pypy"
-    if pypy_version.find("pypy3") != -1:
-        pypy_path += "3"
-    subprocess.call(["setcap cap_net_bind_service,cap_sys_nice=+ep " + pypy_path], shell=True)
+    subprocess.call(['setcap cap_net_bind_service,cap_sys_nice=+ep /usr/bin/python2.7'], shell=True)
+    subprocess.call(['setcap cap_net_bind_service,cap_sys_nice=+ep /usr/bin/python3.7'], shell=True)
+    pypy_path = '/home/ec2-user/' + pypy_version + '-linux64/bin/pypy'
+    if pypy_version.find('pypy3') != -1:
+        pypy_path += '3'
+    subprocess.call(['setcap cap_net_bind_service,cap_sys_nice=+ep ' + pypy_path], shell=True)
 
     # Workaround for setcap causing pypy to execute in secure-execution mode
     # Need to copy libraries that pypy depends on into a trusted path
-    subprocess.call(["cp /home/ec2-user/" + pypy_version + "-linux64/bin/libpypy3-c.so /usr/lib64/"], shell=True)
-    subprocess.call(["cp /home/ec2-user/" + pypy_version + "-linux64/lib/libtinfow.so.6 /usr/lib64/"], shell=True)
+    subprocess.call(['cp /home/ec2-user/' + pypy_version + '-linux64/bin/libpypy3-c.so /usr/lib64/'], shell=True)
+    subprocess.call(['cp /home/ec2-user/' + pypy_version + '-linux64/lib/libtinfow.so.6 /usr/lib64/'], shell=True)
 
     # Install and configure VNC
     # - allow VNC connection with no password; this is okay because we connect via secure SSH port-forwarding
-    subprocess.call(["yum", "-y", "-q", "install", "tigervnc-server"])
-    with open("/lib/systemd/system/vncserver@.service", "r") as f:
+    subprocess.call(['yum', '-y', '-q', 'install', 'tigervnc-server'])
+    with open('/lib/systemd/system/vncserver@.service', 'r') as f:
         lines = f.readlines()
         for i in range(len(lines)):
-            lines[i] = lines[i].replace("<USER>", "ec2-user")
-    with open("/etc/systemd/system/vncserver@.service", "w") as f:
-        f.write("".join(lines))
+            lines[i] = lines[i].replace('<USER>', 'ec2-user')
+    with open('/etc/systemd/system/vncserver@.service', 'w') as f:
+        f.write(''.join(lines))
 
-    with open("/usr/bin/vncserver_wrapper", "r") as f:
+    with open('/usr/bin/vncserver_wrapper', 'r') as f:
         lines = f.readlines()
         for i in range(len(lines)):
-            lines[i] = lines[i].replace("/usr/bin/vncserver ${INSTANCE}", "/usr/bin/vncserver ${INSTANCE} -securitytypes none")
-    with open("/usr/bin/vncserver_wrapper", "w") as f:
-        f.write("".join(lines))
+            lines[i] = lines[i].replace('/usr/bin/vncserver ${INSTANCE}', '/usr/bin/vncserver ${INSTANCE} -securitytypes none')
+    with open('/usr/bin/vncserver_wrapper', 'w') as f:
+        f.write(''.join(lines))
 
-    subprocess.call(["systemctl", "enable", "vncserver@:1"])
+    subprocess.call(['systemctl', 'enable', 'vncserver@:1'])
 
 
 # executes on builder instance
 def configure_os():
     sysctl_parameters = {
         # Limit use of swap file until absolutely necessary
-        "vm.swappiness": 5,                     # Amazon Linux 2 default is 60
+        'vm.swappiness': 5,                     # Amazon Linux 2 default is 60
 
         # Maximum allowed connection backlog; set this high to assist with re-connection surges
-        "net.core.somaxconn": 65536,           # Amazon Linux 2 default is 128
+        'net.core.somaxconn': 65536,           # Amazon Linux 2 default is 128
 
         # Allow all non-system ports to be used for outbound sockets
-        "net.ipv4.ip_local_port_range": "1024 65535",        # Amazon Linux 2 default is 32768 60999
+        'net.ipv4.ip_local_port_range': '1024 65535',        # Amazon Linux 2 default is 32768 60999
     }
 
-    lines = [key + " = " + str(value) for key, value in sysctl_parameters.items()]
-    with open("/etc/sysctl.d/99-server.conf", "w") as f:
-        f.write("\n".join(lines))
+    lines = [key + ' = ' + str(value) for key, value in sysctl_parameters.items()]
+    with open('/etc/sysctl.d/99-server.conf', 'w') as f:
+        f.write('\n'.join(lines))
 
     # Create 2GB swap file
-    subprocess.call(["dd", "if=/dev/zero", "of=/swapfile", "bs=64M", "count=32"])
-    os.chmod("/swapfile", 0o600)     # octal value
-    subprocess.call(["mkswap", "/swapfile"])
-    subprocess.call(["swapon", "/swapfile"])
-    with open("/etc/fstab", "a") as f:
-        f.write("\n/swapfile swap swap defaults 0 0\n")
+    subprocess.call(['dd', 'if=/dev/zero', 'of=/swapfile', 'bs=64M', 'count=32'])
+    os.chmod('/swapfile', 0o600)     # octal value
+    subprocess.call(['mkswap', '/swapfile'])
+    subprocess.call(['swapon', '/swapfile'])
+    with open('/etc/fstab', 'a') as f:
+        f.write('\n/swapfile swap swap defaults 0 0\n')
 
     # Configure SSH
-    with open("/etc/ssh/sshd_config", "a") as f:
-        f.write("\n")
-        f.write("UseDNS no\n")                 # Prevent reverse DNS lookup to reduce login time
-        f.write("GSSAPIAuthentication no\n")  # Disable GSSAPI lookup to reduce login time
-        f.write("PermitRootLogin no\n")       # No reason to ever login as root
+    with open('/etc/ssh/sshd_config', 'a') as f:
+        f.write('\n')
+        f.write('UseDNS no\n')                 # Prevent reverse DNS lookup to reduce login time
+        f.write('GSSAPIAuthentication no\n')  # Disable GSSAPI lookup to reduce login time
+        f.write('PermitRootLogin no\n')       # No reason to ever login as root
 
     # Remove host keys; this forces each instance launched from the AMI to generate its own unique host keys
-    os.remove("/etc/ssh/ssh_host_ecdsa_key")
-    os.remove("/etc/ssh/ssh_host_ecdsa_key.pub")
-    os.remove("/etc/ssh/ssh_host_ed25519_key")
-    os.remove("/etc/ssh/ssh_host_ed25519_key.pub")
-    os.remove("/etc/ssh/ssh_host_rsa_key")
-    os.remove("/etc/ssh/ssh_host_rsa_key.pub")
+    os.remove('/etc/ssh/ssh_host_ecdsa_key')
+    os.remove('/etc/ssh/ssh_host_ecdsa_key.pub')
+    os.remove('/etc/ssh/ssh_host_ed25519_key')
+    os.remove('/etc/ssh/ssh_host_ed25519_key.pub')
+    os.remove('/etc/ssh/ssh_host_rsa_key')
+    os.remove('/etc/ssh/ssh_host_rsa_key.pub')
 
     # Disable local root access
-    subprocess.call(["sudo", "passwd", "-l", "root"])
+    subprocess.call(['sudo', 'passwd', '-l', 'root'])
 
 
 # executes on builder instance
 def configure_pam():
     # Configure limits for users logged in via PAM
     # Do this configuration last as once executed the shell will become inaccessible until reboot
-    with open("/etc/security/limits.conf", "a") as f:
-        f.write("\n* hard nofile 1048576")
-        f.write("\n* soft nofile 1048576")
+    with open('/etc/security/limits.conf', 'a') as f:
+        f.write('\n* hard nofile 1048576')
+        f.write('\n* soft nofile 1048576')
 
 
 if __name__ == '__main__':
 
     if sys.version_info < (3, 7):
-        sys.exit("Python version must be 3.7 or later")
+        sys.exit('Python version must be 3.7 or later')
 
     command = sys.argv[1] if len(sys.argv) > 1 else None
-    if command == "_install":
+    if command == '_install':
         # executes on builder instance
         build_type = sys.argv[2]
         pypy_version = sys.argv[3]
         pycharm_version = sys.argv[4]
-        if build_type == "server":
+        if build_type == 'server':
             install_pypy(pypy_version)
             configure_os()
             configure_pam()
-        elif build_type == "desktop":
+        elif build_type == 'desktop':
             install_pypy(pypy_version)
             install_desktop(pypy_version, pycharm_version)
             configure_os()
@@ -368,23 +368,23 @@ if __name__ == '__main__':
     else:
 
         # Load and parse configuration
-        root = ET.parse("configuration.xml").getroot()
-        name_prefix = root.find("pypy_ami").find("name_prefix").text
-        pypy_version = root.find("pypy_ami").find("pypy_version").text
-        pycharm_version = root.find("pypy_ami").find("pycharm_version").text
-        source_amis = root.find("pypy_ami").find("source_ami")
+        root = ET.parse('configuration.xml').getroot()
+        name_prefix = root.find('pypy_ami').find('name_prefix').text
+        pypy_version = root.find('pypy_ami').find('pypy_version').text
+        pycharm_version = root.find('pypy_ami').find('pycharm_version').text
+        source_amis = root.find('pypy_ami').find('source_ami')
         regions = [x.tag for x in source_amis]
 
-        if command == "list":
+        if command == 'list':
             for region, images in list_images(regions).items():
                 for image in images:
                     if image['Name'].find(name_prefix) == 0:
-                        description = image["Description"] if "Description" in image else ""
-                        print("{0}  {1:28} {2}    {3}".format(region, image["Name"], image["ImageId"], description))
+                        description = image['Description'] if 'Description' in image else ''
+                        print('{0}  {1:28} {2}    {3}'.format(region, image['Name'], image['ImageId'], description))
 
-        elif command == "build":
+        elif command == 'build':
             if len(sys.argv) < 3:
-                sys.exit("missing parameter(s)")
+                sys.exit('missing parameter(s)')
             build_type = sys.argv[2].lower()
             if build_type not in ['server', 'desktop']:
                 sys.exit('Unknown build type')
@@ -393,11 +393,11 @@ if __name__ == '__main__':
                 source_ami = source_amis.find(region).text
                 build_image(region, build_type, source_ami, name_prefix, pypy_version, pycharm_version, description)
 
-        elif command == "delete":
+        elif command == 'delete':
             for region, images in list_images(regions).items():
                 for image in images:
                     for identifier in sys.argv[2:]:
-                        if identifier == image["ImageId"]:
+                        if identifier == image['ImageId']:
                             delete_image(region, image)
                             break
         else:

@@ -6,8 +6,8 @@
         <pypy_version>pypy3.8-v7.3.7</pypy_version>
         <pycharm_version>2021.2.3</pycharm_version>
         <source_ami>
-            <us-west-2>ami-0e5b6b6a9f3db6db8</us-west-2>
-            <eu-west-2>ami-074771aa49ab046e7</eu-west-2>
+            <us-west-2>ami-0142f6ace1c558c7d</us-west-2>
+            <eu-west-2>ami-0c0a1cc13a52a158f</eu-west-2>
         </source_ami>
     </pypy_ami>
 
