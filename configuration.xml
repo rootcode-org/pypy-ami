@@ -2,6 +2,7 @@
 <configuration>
 
     <pypy_ami>
+        <name_prefix>pypy_ami</name_prefix>
         <pypy_version>pypy3.8-v7.3.7</pypy_version>
         <pycharm_version>2021.2.3</pycharm_version>
         <source_ami>

@@ -47,7 +47,7 @@ def list_images(regions):
     return all_images
 
 
-def build_image(region, build_type, source_ami, pypy_version, pycharm_version, description):
+def build_image(region, build_type, source_ami, name_prefix, pypy_version, pycharm_version, description):
     print('Creating ' + build_type + ' AMI in ' + region)
     client = boto3.client('ec2', config=Config(region_name=region))
 
@@ -65,7 +65,7 @@ def build_image(region, build_type, source_ami, pypy_version, pycharm_version, d
 
     # Create a temporary keypair
     print(' creating temporary keypair...')
-    temporary_name = '_imagebuilder_' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
+    temporary_name = '_pypy-ami_' + ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
     response = client.create_key_pair(KeyName=temporary_name)
     keypair_material = response["KeyMaterial"]
     keypair_id = response["KeyPairId"]
@@ -166,11 +166,11 @@ def build_image(region, build_type, source_ami, pypy_version, pycharm_version, d
     # Generate AMI from instance
     print(' generating AMI...')
     now = datetime.datetime.utcnow()
-    ami_name = "{0}-{1}{2:>02}{3:>02}-{4:>02}{5:>02}{6:>02}".format(build_type, str(now.year)[-2:], now.month, now.day, now.hour, now.minute, now.second)
+    image_name = "{0}-{1}-{2}{3:>02}{4:>02}-{5:>02}{6:>02}{7:>02}".format(name_prefix, build_type, str(now.year)[-2:], now.month, now.day, now.hour, now.minute, now.second)
     response = client.create_image(
         Description=description,
         InstanceId=instance_id,
-        Name=ami_name
+        Name=image_name
     )
     image_id = response['ImageId']
 
@@ -185,7 +185,7 @@ def build_image(region, build_type, source_ami, pypy_version, pycharm_version, d
 
     # Tag associated snapshot
     print(' tagging snapshot...')
-    response = client.create_tags(Resources=[snapshot_id], Tags=[{'Key': 'Name', 'Value': ami_name}])
+    response = client.create_tags(Resources=[snapshot_id], Tags=[{'Key': 'Name', 'Value': name_prefix}])
 
     # Terminate instance
     print(' terminating builder instance...')
@@ -372,6 +372,7 @@ if __name__ == '__main__':
 
         # Load and parse configuration
         root = ET.parse("configuration.xml").getroot()
+        name_prefix = root.find("pypy_ami").find("name_prefix").text
         pypy_version = root.find("pypy_ami").find("pypy_version").text
         pycharm_version = root.find("pypy_ami").find("pycharm_version").text
         source_amis = root.find("pypy_ami").find("source_ami")
@@ -380,8 +381,9 @@ if __name__ == '__main__':
         if command == "list":
             for region, images in list_images(regions).items():
                 for image in images:
-                    description = image["Description"] if "Description" in image else ""
-                    print("{0}  {1:28} {2}    {3}".format(region, image["Name"], image["ImageId"], description))
+                    if image['Name'].find(name_prefix) == 0:
+                        description = image["Description"] if "Description" in image else ""
+                        print("{0}  {1:28} {2}    {3}".format(region, image["Name"], image["ImageId"], description))
 
         elif command == "build":
             if len(sys.argv) < 3:
@@ -392,7 +394,7 @@ if __name__ == '__main__':
             description = pypy_version
             for region in regions:
                 source_ami = source_amis.find(region).text
-                build_image(region, build_type, source_ami, pypy_version, pycharm_version, description)
+                build_image(region, build_type, source_ami, name_prefix, pypy_version, pycharm_version, description)
 
         elif command == "delete":
             for region, images in list_images(regions).items():
