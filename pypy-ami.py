@@ -184,7 +184,7 @@ def build_image(region, build_type, source_ami, name_prefix, pypy_version, pycha
 
     # Tag associated snapshot
     print(' tagging snapshot...')
-    response = client.create_tags(Resources=[snapshot_id], Tags=[{'Key': 'Name', 'Value': name_prefix}])
+    response = client.create_tags(Resources=[snapshot_id], Tags=[{'Key': 'Name', 'Value': image_name}])
 
     # Terminate instance
     print(' terminating builder instance...')
