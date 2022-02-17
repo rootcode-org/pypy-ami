@@ -24,13 +24,14 @@ if '_install' not in sys.argv:
         sys.exit('Requires Paramiko module; try "pip install paramiko"')
 
 PURPOSE = '''\
-pypy-ami.py list                   List machine images
-pypy-ami.py build server|desktop   Build machine images
-pypy-ami.py delete <ami_id...>     Delete machine image(s)
+pypy-ami.py list [config=<>]                  List machine images
+pypy-ami.py build server|desktop [config=<>]  Build machine images
+pypy-ami.py delete <ami_id...> [config=<>]    Delete machine image(s)
 
 where,
   server     Build a server image
   desktop    Build a desktop image (same as server but with addition of MATE desktop)
+  config     Path to configuration file; if not specified configuration is loaded from same folder as script
   <ami_id>   AMI identifier
 '''
 
@@ -134,14 +135,14 @@ def build_image(region, build_type, source_ami, name_prefix, pypy_version, pycha
     sftp = ssh.open_sftp()
 
     # Upload this script
-    print(' uploading configuration script...')
+    print(' uploading instance configuration script...')
     local_script_path = sys.argv[0]
     remote_script_name = os.path.basename(sys.argv[0])
     sftp.put(local_script_path, remote_script_name)
     sftp.chmod(remote_script_name, 0o744)
 
     # Execute script
-    print(' executing configuration script...')
+    print(' executing instance configuration script...')
     stdin, stdout, stderr = ssh.exec_command('sudo python3 {0} _install {1} {2} {3}'.format(remote_script_name, build_type, pypy_version, pycharm_version))
     exit_status = stdout.channel.recv_exit_status()
     sftp.remove(remote_script_name)
@@ -368,7 +369,9 @@ if __name__ == '__main__':
     else:
 
         # Load and parse configuration
-        root = ET.parse('configuration.xml').getroot()
+        config_path = next((x.split("=", 1)[-1] for x in sys.argv if x.find("config=") == 0), None)
+        config_path = config_path if config_path else 'configuration.xml'
+        root = ET.parse(config_path).getroot()
         name_prefix = root.find('pypy_ami').find('name_prefix').text
         pypy_version = root.find('pypy_ami').find('pypy_version').text
         pycharm_version = root.find('pypy_ami').find('pycharm_version').text
